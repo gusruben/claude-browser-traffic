@@ -1,0 +1,4 @@
+*.pid
+*.log
+captures
+specs

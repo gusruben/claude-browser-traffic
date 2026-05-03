@@ -1,0 +1,200 @@
+#!/usr/bin/env node
+const { spawn, spawnSync } = require('node:child_process');
+const { parseArgs } = require('node:util');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const CAPTURES_DIR = path.join(__dirname, 'captures');
+const PID_PATH = path.join(CAPTURES_DIR, '.proxy.pid');
+
+const [, , cmd, ...rest] = process.argv;
+switch (cmd) {
+  case 'proxy': runProxy(rest); break;
+  case 'stop': stopProxy(); break;
+  case 'parse': parseHar(rest); break;
+  default:
+    console.error(`Unknown command: ${cmd ?? '(none)'}\nCommands: proxy, stop, parse`);
+    process.exit(1);
+}
+
+function runProxy(args) {
+  const probe = spawnSync('mitmdump', ['--version'], { stdio: 'ignore' });
+  if (probe.error?.code === 'ENOENT' || probe.status !== 0) {
+    console.error(
+      'mitmdump not found on PATH. Tell the user to install mitmproxy by following ' +
+        'the official guide: https://docs.mitmproxy.org/stable/overview/installation/ ' +
+        '(do not run the install command for them — they should pick the right one for their OS).'
+    );
+    process.exit(127);
+  }
+
+  const { values } = parseArgs({
+    args,
+    options: {
+      name: { type: 'string', default: 'capture' },
+      port: { type: 'string', default: '9090' },
+    },
+  });
+
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  fs.mkdirSync(CAPTURES_DIR, { recursive: true });
+  const harPath = path.join(CAPTURES_DIR, `${values.name}-${ts}.har`);
+
+  console.log(`Proxy listening on http://127.0.0.1:${values.port}`);
+  console.log('Switch your browser proxy to "mitmproxy", browse, then press Ctrl+C.\n');
+
+  const proc = spawn('mitmdump', ['-p', values.port, '--set', `hardump=${harPath}`, '-q'], {
+    stdio: 'inherit',
+  });
+
+  fs.writeFileSync(PID_PATH, String(proc.pid));
+
+  proc.on('error', (err) => {
+    console.error('Failed to start mitmdump:', err.message);
+    process.exit(1);
+  });
+
+  proc.on('close', (code) => {
+    try { fs.unlinkSync(PID_PATH); } catch {}
+    if (code === 0 || code === null) console.log(harPath);
+    else process.exit(code);
+  });
+}
+
+function stopProxy() {
+  try {
+    const pid = parseInt(fs.readFileSync(PID_PATH, 'utf-8').trim(), 10);
+    process.kill(pid, 'SIGINT');
+    console.log(`Sent SIGINT to mitmdump (pid ${pid}). HAR will be saved.`);
+  } catch (err) {
+    if (err.code === 'ENOENT') console.error('No running proxy found.');
+    else if (err.code === 'ESRCH') {
+      console.error('Proxy process already exited.');
+      try { fs.unlinkSync(PID_PATH); } catch {}
+    } else throw err;
+  }
+}
+
+function parseHar(args) {
+  const harPath = args[0];
+  if (!harPath) {
+    console.error('Usage: api-re parse <har-file>');
+    process.exit(1);
+  }
+
+  const har = JSON.parse(fs.readFileSync(harPath, 'utf-8'));
+
+  const STATIC_EXT = /\.(js|mjs|css|png|jpe?g|gif|svg|ico|woff2?|ttf|eot|map|webp|avif)(\?|$)/i;
+  const STATIC_MIME = /^(image\/|font\/|text\/css|application\/javascript|text\/javascript)/;
+
+  const apiCalls = har.log.entries.filter((e) => {
+    if (STATIC_EXT.test(e.request.url)) return false;
+    const mime = e.response.content?.mimeType || '';
+    if (STATIC_MIME.test(mime)) return false;
+    const rt = e._resourceType;
+    if (rt) return rt === 'xhr' || rt === 'fetch';
+    return true;
+  });
+
+  const parameterize = (p) =>
+    p
+      .split('/')
+      .map((s) => {
+        if (!s) return s;
+        if (/^\d+$/.test(s)) return ':id';
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return ':id';
+        if (/^[0-9a-f]{20,}$/i.test(s)) return ':id';
+        return s;
+      })
+      .join('/');
+
+  const inferSchema = (val, depth = 0) => {
+    if (depth > 3) return { type: typeof val };
+    if (val === null) return { type: 'null' };
+    if (Array.isArray(val)) {
+      return {
+        type: 'array',
+        items: val.length ? inferSchema(val[0], depth + 1) : {},
+        length: val.length,
+      };
+    }
+    if (typeof val === 'object') {
+      const props = {};
+      for (const [k, v] of Object.entries(val)) props[k] = inferSchema(v, depth + 1);
+      return { type: 'object', properties: props };
+    }
+    return { type: typeof val };
+  };
+
+  const AUTH_NAMES = new Set([
+    'authorization',
+    'x-api-key',
+    'x-auth-token',
+    'cookie',
+    'x-csrf-token',
+    'x-xsrf-token',
+  ]);
+
+  const parseJsonBody = (body) => {
+    if (!body?.text) return null;
+    try {
+      return inferSchema(JSON.parse(body.text));
+    } catch {
+      return null;
+    }
+  };
+
+  const endpoints = apiCalls.map((e) => {
+    const url = new URL(e.request.url);
+
+    const auth = {};
+    for (const h of e.request.headers) {
+      const name = h.name.toLowerCase();
+      if (AUTH_NAMES.has(name)) {
+        if (name === 'authorization') {
+          const [scheme] = h.value.split(' ');
+          auth[h.name] = h.value.includes(' ') ? `${scheme} <token>` : '<token>';
+        } else if (name === 'cookie') {
+          auth[h.name] = h.value
+            .split(';')
+            .map((c) => c.trim().split('=')[0])
+            .join('; ');
+        } else {
+          auth[h.name] = '<redacted>';
+        }
+      }
+    }
+
+    const qp = Object.fromEntries(url.searchParams);
+
+    return {
+      method: e.request.method,
+      url: e.request.url,
+      pattern: `${url.origin}${parameterize(url.pathname)}`,
+      status: e.response.status,
+      queryParams: Object.keys(qp).length ? qp : undefined,
+      auth: Object.keys(auth).length ? auth : undefined,
+      requestBody: parseJsonBody(e.request.postData),
+      responseBody: parseJsonBody(e.response.content),
+    };
+  });
+
+  const seen = new Map();
+  for (const ep of endpoints) {
+    const key = `${ep.method} ${ep.pattern}`;
+    if (!seen.has(key)) seen.set(key, { ...ep, occurrences: 1 });
+    else seen.get(key).occurrences++;
+  }
+
+  const result = {
+    source: harPath,
+    totalHarEntries: har.log.entries.length,
+    apiCallsFound: endpoints.length,
+    uniqueEndpoints: seen.size,
+    endpoints: [...seen.values()],
+  };
+
+  const outPath = harPath.replace(/\.har$/, '-parsed.json');
+  fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
+  console.log(outPath);
+}
