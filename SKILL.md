@@ -24,8 +24,8 @@ Read the parsed JSON and summarize: auth mechanism, base URL, endpoints, paginat
 
 ## Integrate
 
-Look in `${CLAUDE_SKILL_DIR}/captures/` for the relevant parsed JSON. Write integration code directly in the current project using its language/framework. Use the exact auth pattern, headers, and request shapes from the capture. Write purpose-built functions, not a generic SDK.
+Look in `${CLAUDE_SKILL_DIR}/captures/` for the relevant parsed JSON. If asked to integrate an API, write integration code directly in the current project using its language/framework. Use the exact auth pattern, headers, and request shapes from the capture. Write purpose-built functions, not a generic SDK.
 
 ## Save API spec
 
-When the user says "write that down" after a capture/analysis, write a concise API spec to `${CLAUDE_SKILL_DIR}/specs/<name>.md` with: base URL, auth pattern, and for each endpoint: method, path pattern, params, request/response shape. Keep it machine-readable (YAML frontmatter + markdown tables). Future sessions can read these specs to implement integrations without recapturing. **NEVER include sensitive data in specs** — strip all API keys, tokens, session IDs, passwords, cookies, and other secrets. Describe the auth *mechanism* (e.g. "Bearer token in Authorization header") but never include actual credential values.
+When the user says "save a spec" after a capture/analysis, write a concise API spec to `${CLAUDE_SKILL_DIR}/specs/<name>.md` with: base URL, auth pattern, and for each endpoint: method, path pattern, params, request/response shape. Keep it machine-readable (YAML frontmatter + markdown tables). Future sessions can read these specs to implement integrations without recapturing. **NEVER include sensitive data in specs** — strip all API keys, tokens, session IDs, passwords, cookies, and other secrets. Describe the auth *mechanism* (e.g. "Bearer token in Authorization header") but never include actual credential values.
