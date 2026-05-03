@@ -1,6 +1,6 @@
 # claude-browser-traffic
 
-Claude Code skill for reverse engineering APIs by capturing browser traffic with mitmproxy.
+Claude Code skill for scraping websites and reverse engineering APIs by capturing browser traffic with mitmproxy.
 
 ## Setup
 
@@ -27,11 +27,11 @@ Add to `~/.claude/settings.json`:
 
 ### Install mitmproxy
 
-See the [installation guide](https://docs.mitmproxy.org/stable/overview/installation/) — works on Linux, macOS, and Windows.
+See the [mitmproxy installation guide](https://docs.mitmproxy.org/stable/overview/installation/).
 
 ### Install a proxy switcher
 
-Pick one based on your browser:
+Pick a proxy extension for your browser, these extensions let you enable a proxy for a specific tab:
 
 - **Chrome / Edge / Brave / other Chromium**: [TabProxy](https://chromewebstore.google.com/detail/tabproxy-%E2%80%94-per-site-per-t/lgkgojfkajhkhohpgnpmmkodmbdkaiea)
 - **Firefox**: [FoxyProxy Standard](https://addons.mozilla.org/en-US/firefox/addon/foxyproxy-standard/)
@@ -48,6 +48,6 @@ Switch the proxy back off when not capturing.
 
 ## Usage
 
-Tell Claude: "capture API traffic" or "reverse engineer API" — or run `/claude-browser-traffic`.
+Tell Claude: "capture browser traffic" or "reverse engineer API" — or run `/claude-browser-traffic`.
 
 Claude starts mitmproxy, you flip the browser proxy to `mitmproxy` and browse, then come back when done. After capture, say "write that down" to save a reusable API spec.

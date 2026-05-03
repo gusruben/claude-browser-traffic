@@ -1,6 +1,6 @@
 ---
 name: claude-browser-traffic
-description: "Reverse engineer APIs by capturing browser traffic with mitmproxy. Use when the user says \"capture API traffic\" or \"reverse engineer API\". The user browses their own browser via mitmproxy + a proxy switcher extension (FoxyProxy on Firefox, TabProxy on Chromium)."
+description: "Reverse engineer APIs by capturing browser traffic with mitmproxy. Use when the user says \"capture browser traffic\" or \"reverse engineer API\". The user browses their own browser via mitmproxy + a proxy switcher extension (FoxyProxy on Firefox, TabProxy on Chromium)."
 user-invocable: true
 allowed-tools: Bash, Read, Grep, Glob
 argument-hint: "[proxy|stop|parse] [name-or-har-path]"
