@@ -78,7 +78,7 @@ function stopProxy() {
 function parseHar(args) {
   const harPath = args[0];
   if (!harPath) {
-    console.error('Usage: api-re parse <har-file>');
+    console.error('Usage: bcap parse <har-file>');
     process.exit(1);
   }
 

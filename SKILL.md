@@ -1,5 +1,5 @@
 ---
-name: api-re
+name: claude-browser-traffic
 description: "Reverse engineer APIs by capturing browser traffic with mitmproxy. Use when the user says \"capture API traffic\" or \"reverse engineer API\". The user browses their own browser via mitmproxy + a proxy switcher extension (FoxyProxy on Firefox, TabProxy on Chromium)."
 user-invocable: true
 allowed-tools: Bash, Read, Grep, Glob
@@ -12,7 +12,7 @@ Capture traffic with mitmproxy while the user drives their own browser. Best for
 
 ## Capture
 
-Run `${CLAUDE_SKILL_DIR}/api-re proxy --name "<name>"` as a background task. Tell the user to switch their proxy switcher to "mitmproxy" and browse. When they're done, run `${CLAUDE_SKILL_DIR}/api-re stop` to stop the proxy and flush the HAR. Then run `${CLAUDE_SKILL_DIR}/api-re parse <har-path>`.
+Run `${CLAUDE_SKILL_DIR}/bcap proxy --name "<name>"` as a background task. Tell the user to switch their proxy switcher to "mitmproxy" and browse. When they're done, run `${CLAUDE_SKILL_DIR}/bcap stop` to stop the proxy and flush the HAR. Then run `${CLAUDE_SKILL_DIR}/bcap parse <har-path>`.
 
 ### Port conflicts
 

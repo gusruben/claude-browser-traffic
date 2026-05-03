@@ -1,4 +1,4 @@
-# api-re
+# claude-browser-traffic
 
 Claude Code skill for reverse engineering APIs by capturing browser traffic with mitmproxy.
 
@@ -7,7 +7,7 @@ Claude Code skill for reverse engineering APIs by capturing browser traffic with
 Clone into your Claude skills directory:
 
 ```bash
-git clone https://github.com/gusruben/claude-browser-traffic "$HOME/.claude/skills/api-re"
+git clone https://github.com/gusruben/claude-browser-traffic "$HOME/.claude/skills/claude-browser-traffic"
 ```
 
 (`$HOME` works in bash, zsh, and PowerShell. On `cmd.exe`, use `%USERPROFILE%` instead.)
@@ -17,10 +17,10 @@ Add to `~/.claude/settings.json`:
 {
   "permissions": {
     "allow": [
-      "Read(~/.claude/skills/api-re/captures/**)",
-      "Bash(~/.claude/skills/api-re/api-re:*)"
+      "Read(~/.claude/skills/claude-browser-traffic/captures/**)",
+      "Bash(~/.claude/skills/claude-browser-traffic/bcap:*)"
     ],
-    "additionalDirectories": ["~/.claude/skills/api-re"]
+    "additionalDirectories": ["~/.claude/skills/claude-browser-traffic"]
   }
 }
 ```
@@ -48,6 +48,6 @@ Switch the proxy back off when not capturing.
 
 ## Usage
 
-Tell Claude: "capture API traffic" or "reverse engineer API" — or run `/api-re`.
+Tell Claude: "capture API traffic" or "reverse engineer API" — or run `/claude-browser-traffic`.
 
 Claude starts mitmproxy, you flip the browser proxy to `mitmproxy` and browse, then come back when done. After capture, say "write that down" to save a reusable API spec.
