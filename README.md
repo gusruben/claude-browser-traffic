@@ -29,6 +29,10 @@ Add to `~/.claude/settings.json`:
 
 See the [mitmproxy installation guide](https://docs.mitmproxy.org/stable/overview/installation/).
 
+### Install DuckDB
+
+Install the `duckdb` CLI from the [DuckDB installation guide](https://duckdb.org/docs/installation/) and make sure it's on your `PATH`.
+
 ### Install a proxy switcher
 
 Pick a proxy extension for your browser, these extensions let you enable a proxy for a specific tab:

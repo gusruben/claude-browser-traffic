@@ -12,8 +12,9 @@ switch (cmd) {
   case 'proxy': runProxy(rest); break;
   case 'stop': stopProxy(); break;
   case 'parse': parseHar(rest); break;
+  case 'query': runQuery(rest); break;
   default:
-    console.error(`Unknown command: ${cmd ?? '(none)'}\nCommands: proxy, stop, parse`);
+    console.error(`Unknown command: ${cmd ?? '(none)'}\nCommands: proxy, stop, parse, query`);
     process.exit(1);
 }
 
@@ -91,8 +92,6 @@ function parseHar(args) {
     if (STATIC_EXT.test(e.request.url)) return false;
     const mime = e.response.content?.mimeType || '';
     if (STATIC_MIME.test(mime)) return false;
-    const rt = e._resourceType;
-    if (rt) return rt === 'xhr' || rt === 'fetch';
     return true;
   });
 
@@ -108,93 +107,61 @@ function parseHar(args) {
       })
       .join('/');
 
-  const inferSchema = (val, depth = 0) => {
-    if (depth > 3) return { type: typeof val };
-    if (val === null) return { type: 'null' };
-    if (Array.isArray(val)) {
-      return {
-        type: 'array',
-        items: val.length ? inferSchema(val[0], depth + 1) : {},
-        length: val.length,
-      };
-    }
-    if (typeof val === 'object') {
-      const props = {};
-      for (const [k, v] of Object.entries(val)) props[k] = inferSchema(v, depth + 1);
-      return { type: 'object', properties: props };
-    }
-    return { type: typeof val };
+  const headersToObj = (headers) => {
+    const obj = {};
+    for (const h of headers || []) obj[h.name.toLowerCase()] = h.value;
+    return obj;
   };
 
-  const AUTH_NAMES = new Set([
-    'authorization',
-    'x-api-key',
-    'x-auth-token',
-    'cookie',
-    'x-csrf-token',
-    'x-xsrf-token',
-  ]);
-
-  const parseJsonBody = (body) => {
-    if (!body?.text) return null;
-    try {
-      return inferSchema(JSON.parse(body.text));
-    } catch {
-      return null;
-    }
-  };
-
-  const endpoints = apiCalls.map((e) => {
+  const rows = apiCalls.map((e) => {
     const url = new URL(e.request.url);
-
-    const auth = {};
-    for (const h of e.request.headers) {
-      const name = h.name.toLowerCase();
-      if (AUTH_NAMES.has(name)) {
-        if (name === 'authorization') {
-          const [scheme] = h.value.split(' ');
-          auth[h.name] = h.value.includes(' ') ? `${scheme} <token>` : '<token>';
-        } else if (name === 'cookie') {
-          auth[h.name] = h.value
-            .split(';')
-            .map((c) => c.trim().split('=')[0])
-            .join('; ');
-        } else {
-          auth[h.name] = '<redacted>';
-        }
-      }
-    }
-
     const qp = Object.fromEntries(url.searchParams);
-
     return {
       method: e.request.method,
       url: e.request.url,
-      pattern: `${url.origin}${parameterize(url.pathname)}`,
+      host: url.host,
+      path: url.pathname,
+      pattern: parameterize(url.pathname),
+      query: Object.keys(qp).length ? qp : null,
       status: e.response.status,
-      queryParams: Object.keys(qp).length ? qp : undefined,
-      auth: Object.keys(auth).length ? auth : undefined,
-      requestBody: parseJsonBody(e.request.postData),
-      responseBody: parseJsonBody(e.response.content),
+      mime: e.response.content?.mimeType || null,
+      started_at: e.startedDateTime || null,
+      duration_ms: typeof e.time === 'number' ? e.time : null,
+      request_headers: headersToObj(e.request.headers),
+      response_headers: headersToObj(e.response.headers),
+      request_body: e.request.postData?.text ?? null,
+      response_body: e.response.content?.text ?? null,
     };
   });
 
-  const seen = new Map();
-  for (const ep of endpoints) {
-    const key = `${ep.method} ${ep.pattern}`;
-    if (!seen.has(key)) seen.set(key, { ...ep, occurrences: 1 });
-    else seen.get(key).occurrences++;
+  const outPath = harPath.replace(/\.har$/, '-entries.ndjson');
+  fs.writeFileSync(outPath, rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
+  console.log(outPath);
+}
+
+function runQuery(args) {
+  const [ndjsonPath, sql] = args;
+  if (!ndjsonPath || !sql) {
+    console.error('Usage: bcap query <entries-ndjson> "<sql>"\n\nThe NDJSON rows are exposed as a view named `entries`.');
+    process.exit(1);
+  }
+  if (!fs.existsSync(ndjsonPath)) {
+    console.error(`File not found: ${ndjsonPath}`);
+    process.exit(1);
   }
 
-  const result = {
-    source: harPath,
-    totalHarEntries: har.log.entries.length,
-    apiCallsFound: endpoints.length,
-    uniqueEndpoints: seen.size,
-    endpoints: [...seen.values()],
-  };
+  const probe = spawnSync('duckdb', ['--version'], { stdio: 'ignore' });
+  if (probe.error?.code === 'ENOENT' || probe.status !== 0) {
+    console.error(
+      'duckdb not found on PATH. Tell the user to install the DuckDB CLI: ' +
+        'https://duckdb.org/docs/installation/'
+    );
+    process.exit(127);
+  }
 
-  const outPath = harPath.replace(/\.har$/, '-parsed.json');
-  fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
-  console.log(outPath);
+  const escaped = path.resolve(ndjsonPath).replace(/'/g, "''");
+  const fullSql = `CREATE VIEW entries AS SELECT * FROM read_ndjson('${escaped}'); ${sql}`;
+
+  const proc = spawnSync('duckdb', ['-c', fullSql], { stdio: 'inherit' });
+  process.exit(proc.status ?? 1);
 }

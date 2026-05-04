@@ -20,11 +20,21 @@ Default port is 9090. If mitmdump fails to bind (port in use), tell the user 909
 
 ## After capture
 
-Read the parsed JSON and summarize: auth mechanism, base URL, endpoints, pagination, and notable headers. Ask which endpoints they need.
+Parse writes a flat NDJSON file (`<name>-entries.ndjson`), one row per non-static request. Query it with `bcap query` — do not read the file directly, it can be large and contains raw bodies/headers/credentials.
+
+```
+${CLAUDE_SKILL_DIR}/bcap query captures/<file>-entries.ndjson "SELECT method, host, pattern, status FROM entries WHERE host = '...' LIMIT 20"
+```
+
+The NDJSON rows are exposed as a view named `entries`. Columns: `method, url, host, path, pattern, query, status, mime, started_at, duration_ms, request_headers, response_headers, request_body, response_body`.
+
+- `pattern` is `path` with numeric/UUID/hex segments rewritten to `:id` — useful for `GROUP BY pattern` to collapse polling/pagination.
+- `query`, `request_headers`, `response_headers` are JSON objects (header names lowercased). Bodies are raw text — use DuckDB's `->>` to extract fields, e.g. `response_body::JSON ->> 'id'`.
+- Start with `SELECT host, pattern, COUNT(*) ... GROUP BY 1,2 ORDER BY 3 DESC` to see the shape of the session, then drill into specific endpoints. Summarize auth mechanism, base URL, endpoints, pagination. Ask which endpoints the user needs.
 
 ## Integrate
 
-Look in `${CLAUDE_SKILL_DIR}/captures/` for the relevant parsed JSON. If asked to integrate an API, write integration code directly in the current project using its language/framework. Use the exact auth pattern, headers, and request shapes from the capture. Write purpose-built functions, not a generic SDK.
+Query `${CLAUDE_SKILL_DIR}/captures/<name>-entries.ndjson` with `bcap query` to pull the exact request shapes you need. If asked to integrate an API, write integration code directly in the current project using its language/framework. Use the exact auth pattern, headers, and request shapes from the capture. Write purpose-built functions, not a generic SDK.
 
 ## Save API spec
 
