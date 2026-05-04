@@ -48,10 +48,8 @@ Add a proxy entry: HTTP, host `127.0.0.1`, port `9090`, name it `mitmproxy`.
 2. Switch your browser to the `mitmproxy` proxy and open <http://mitm.it> — mitmproxy serves the cert plus per-OS install instructions (Linux, macOS, Windows, iOS, Android)
 3. Follow the instructions for your OS + browser, then stop `mitmdump`
 
-Switch the proxy back off when not capturing.
-
 ## Usage
 
-Tell Claude: "capture browser traffic" or "reverse engineer API" — or run `/claude-browser-traffic`.
+Tell Claude to "capture browser traffic" or "reverse engineer API", or run `/claude-browser-traffic`.
 
-Claude starts mitmproxy, you flip the browser proxy to `mitmproxy` and browse, then come back when done. After capture, say "write that down" to save a reusable API spec.
+Claude will start mitmproxy, you can flip the proxy browser extension to `mitmproxy` and browse, then come back when done. After capture, say "save a spec" and Claude will attempt to generate an API spec for any requests you want.
